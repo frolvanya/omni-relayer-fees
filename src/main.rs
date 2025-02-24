@@ -64,7 +64,7 @@ async fn get_near_gas_price() -> u128 {
 async fn get_near_fees(amount: u128, currency: &str) {
     let total_near = ((get_near_gas_price().await * NEAR_GAS + NEAR_FIN_TRANSFER_DEPOSIT) * amount)
         as f64
-        / 10_f64.powf(24_f64);
+        / 1e24;
 
     println!(
         "{} transfers to NEAR will burn {:.3} NEARs (approx. {:.3} {})",
@@ -94,7 +94,7 @@ async fn get_evm_fees(chain: ChainKind, amount: u128, currency: &str) {
         _ => unreachable!("Invalid chain was provided to `get_evm_fees` function (only Base and Arb is supported for now)"),
     };
 
-    let total_eth = (get_evm_gas_price(chain).await * gas * amount) as f64 / 10_f64.powf(18_f64);
+    let total_eth = (get_evm_gas_price(chain).await * gas * amount) as f64 / 1e18;
 
     println!(
         "{} transfers to {:?} will burn {:.3} ETHs (approx. {:.3} {})",
@@ -107,14 +107,13 @@ async fn get_evm_fees(chain: ChainKind, amount: u128, currency: &str) {
 }
 
 async fn get_solana_fees(amount: u128, currency: &str) {
-    let total_fee_lamports = SOLANA_GAS as u128 * amount;
-    let total_sol = total_fee_lamports as f64 / 1e9;
-    let sol_price = get_token_price(ChainKind::Sol, currency).await;
+    let total_sol = (SOLANA_GAS as u128 * amount) as f64 / 1e9;
+
     println!(
         "{} transfers to Solana will burn {:.6} SOLs (approx. {:.3} {})",
         amount,
         total_sol,
-        total_sol * sol_price,
+        total_sol * get_token_price(ChainKind::Sol, currency).await,
         currency
     );
 }
