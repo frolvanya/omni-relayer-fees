@@ -12,7 +12,8 @@ const NEAR_FIN_TRANSFER_DEPOSIT: u128 = 600_000_000_000_000_000_000; // https://
 const NEAR_GAS: u128 = 33_220_000_000_000; // https://nearblocks.io/txns/7L6J5qi3Yqabb8i8KrtixN5ujyoswrSzW9egjFuGD8Vv
 const BASE_GAS: u128 = 127_652; // https://basescan.org/tx/0xa779997b00a73277bc90dda525e61cf8fb919fd1f2c347cc370f720745e0c21b
 const ARB_GAS: u128 = 149_503; // https://arbiscan.io/tx/0x179c58a791909f5e1ac328aa3c810bde916dd3a9070205f6b56758404188fb8d
-const SOLANA_GAS: u64 = 103_372; // https://solscan.io/tx/35V7H2BGsyEPw3v2hMzjmQYTC4PwTmu8bY7LiNm2UFMfGhfe86eZPLsKpQFyqsq9vs7HtBrLqFfBUPvLtPW4Qed
+
+const SOLANA_FEE: u128 = 10000; // https://solscan.io/tx/35V7H2BGsyEPw3v2hMzjmQYTC4PwTmu8bY7LiNm2UFMfGhfe86eZPLsKpQFyqsq9vs7HtBrLqFfBUPvLtPW4Qed
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -33,7 +34,7 @@ struct Args {
     currency: String,
 }
 
-async fn get_token_price(chain: ChainKind, currency: &str) -> f64 {
+async fn get_token_price(chain: ChainKind, currency: &str) -> Option<f64> {
     let token = match chain {
         ChainKind::Near => "near",
         ChainKind::Eth | ChainKind::Base | ChainKind::Arb => "ethereum",
@@ -51,7 +52,7 @@ async fn get_token_price(chain: ChainKind, currency: &str) -> f64 {
         .await
         .unwrap();
 
-    response[token][currency].as_f64().unwrap()
+    response[token][currency].as_f64()
 }
 
 async fn get_near_gas_price() -> u128 {
@@ -66,11 +67,17 @@ async fn get_near_fees(amount: u128, currency: &str) {
         as f64
         / 1e24;
 
+    let price = get_token_price(ChainKind::Near, currency).await;
+
     println!(
-        "{} transfers to NEAR will burn {:.3} NEARs (approx. {:.3} {})",
+        "{} transfers to NEAR will burn {:.3} NEARs (approx. {} {})",
         amount,
         total_near,
-        total_near * get_token_price(ChainKind::Near, currency).await,
+        if let Some(price) = price {
+            format!("{:.3}", total_near * price)
+        } else {
+            "--".to_string()
+        },
         currency
     );
 }
@@ -96,24 +103,36 @@ async fn get_evm_fees(chain: ChainKind, amount: u128, currency: &str) {
 
     let total_eth = (get_evm_gas_price(chain).await * gas * amount) as f64 / 1e18;
 
+    let price = get_token_price(chain, currency).await;
+
     println!(
         "{} transfers to {:?} will burn {:.3} ETHs (approx. {:.3} {})",
         amount,
         chain,
         total_eth,
-        total_eth * get_token_price(chain, currency).await,
+        if let Some(price) = price {
+            format!("{:.3}", total_eth * price)
+        } else {
+            "--".to_string()
+        },
         currency
     );
 }
 
 async fn get_solana_fees(amount: u128, currency: &str) {
-    let total_sol = (SOLANA_GAS as u128 * amount) as f64 / 1e9;
+    let total_sol = (SOLANA_FEE * amount) as f64 / 1e9;
+
+    let price = get_token_price(ChainKind::Sol, currency).await;
 
     println!(
         "{} transfers to Solana will burn {:.6} SOLs (approx. {:.3} {})",
         amount,
         total_sol,
-        total_sol * get_token_price(ChainKind::Sol, currency).await,
+        if let Some(price) = price {
+            format!("{:.3}", total_sol * price)
+        } else {
+            "--".to_string()
+        },
         currency
     );
 }
